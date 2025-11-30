@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
 import { Form, Row, Col, Button, InputGroup } from 'react-bootstrap';
-import { selectTableById } from '../../redux/tablesRedux';
+import { selectTableById, updateTableRequest } from '../../redux/tablesRedux';
 
 const Table = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
   const table = useSelector(state => selectTableById(state, id));
   const [status, setStatus] = useState('');
   const [peopleAmount, setPeopleAmount] = useState(0);
@@ -27,7 +29,23 @@ const Table = () => {
 
   const handleSubmit = e => {
     e.preventDefault();
-    // placeholder for future update logic
+    const sanitizedMax = Math.max(1, maxPeopleAmount);
+    const sanitizedPeople = Math.min(Math.max(0, peopleAmount), sanitizedMax);
+    const sanitizedBill = Math.max(0, bill);
+    const normalizedStatus =
+      sanitizedPeople > 0 && (status === 'Free' || status === 'Cleaning') ? 'Busy' : status;
+    const autoPeople = normalizedStatus === 'Free' || normalizedStatus === 'Cleaning' ? 0 : sanitizedPeople;
+    const autoBill = normalizedStatus === 'Busy' ? sanitizedBill : 0;
+
+    const updatedTable = {
+      ...table,
+      status: normalizedStatus,
+      peopleAmount: autoPeople,
+      maxPeopleAmount: sanitizedMax,
+      bill: autoBill,
+    };
+
+    dispatch(updateTableRequest(updatedTable)).then(() => navigate('/'));
   };
 
   return (
@@ -78,7 +96,7 @@ const Table = () => {
             value={bill}
             onChange={e => setBill(Number(e.target.value))}
             min={0}
-          />
+            />
         </InputGroup>
       </Form.Group>
 
