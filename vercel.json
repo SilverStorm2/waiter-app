@@ -9,5 +9,10 @@
   ],
   "framework": "create-react-app",
   "installCommand": "yarn install --frozen-lockfile",
-  "buildCommand": "yarn build"
+  "buildCommand": "yarn build",
+  "functions": {
+    "api/**/*.js": {
+      "includeFiles": "db.json"
+    }
+  }
 }
