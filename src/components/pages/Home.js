@@ -1,10 +1,11 @@
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Row, Col, Button, Badge, Form } from 'react-bootstrap';
-import { selectTables } from '../../redux/tablesRedux';
+import { selectTables, fetchTables } from '../../redux/tablesRedux';
 
 const Home = () => {
+  const dispatch = useDispatch();
   const tables = useSelector(selectTables);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -34,6 +35,12 @@ const Home = () => {
   );
 
   useEffect(() => {
+    // Poll backend to capture changes from other users
+    const id = setInterval(() => dispatch(fetchTables()), 5000);
+    return () => clearInterval(id);
+  }, [dispatch]);
+
+  useEffect(() => {
     if (!tables.length) return;
 
     const counts = tables.reduce(
@@ -59,6 +66,13 @@ const Home = () => {
   }, [tables]);
 
   const totalTables = tables.length || 1; // avoid division by zero
+  const busyTables = tables.filter(table => table.status === 'Busy');
+  const occupancyPercent = Math.round(((busyTables.length / totalTables) * 100 + Number.EPSILON) * 10) / 10;
+  const avgBusyBill = busyTables.length
+    ? Math.round(
+        (busyTables.reduce((sum, table) => sum + Number(table.bill || 0), 0) / busyTables.length + Number.EPSILON) * 100
+      ) / 100
+    : 0;
 
   return (
     <section>
@@ -95,6 +109,10 @@ const Home = () => {
               {status}: {tables.filter(t => t.status === status).length}
             </Badge>
           ))}
+        </div>
+        <div className="d-flex flex-wrap align-items-center gap-3 mb-3 small text-muted">
+          <span>Obłożenie: <strong>{occupancyPercent}%</strong></span>
+          <span>Średni rachunek (Busy): <strong>${avgBusyBill.toFixed(2)}</strong></span>
         </div>
         <div className="d-flex flex-column gap-2">
           {history.length === 0 ? (
