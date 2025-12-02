@@ -16,7 +16,7 @@
     },
     {
       "id": "3",
-      "status": "Cleaning",
+      "status": "Busy",
       "peopleAmount": 0,
       "maxPeopleAmount": 3,
       "bill": 0
@@ -65,7 +65,7 @@
     },
     {
       "id": "10",
-      "status": "Free",
+      "status": "Busy",
       "peopleAmount": 0,
       "maxPeopleAmount": 4,
       "bill": 0

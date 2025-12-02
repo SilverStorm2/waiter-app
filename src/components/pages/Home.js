@@ -1,5 +1,5 @@
 import { useSelector } from 'react-redux';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Row, Col, Button, Badge, Form } from 'react-bootstrap';
 import { selectTables } from '../../redux/tablesRedux';
@@ -8,7 +8,9 @@ const Home = () => {
   const tables = useSelector(selectTables);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [history, setHistory] = useState([]);
   const statusOrder = ['Busy', 'Reserved', 'Cleaning', 'Free'];
+  // Softer, modern badge colors instead of the default bright Bootstrap palette
   const statusVariant = {
     Busy: 'danger',
     Reserved: 'warning',
@@ -30,6 +32,33 @@ const Home = () => {
   const sortedTables = [...filteredTables].sort(
     (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
   );
+
+  useEffect(() => {
+    if (!tables.length) return;
+
+    const counts = tables.reduce(
+      (acc, table) => {
+        if (acc[table.status] !== undefined) acc[table.status] += 1;
+        return acc;
+      },
+      { Busy: 0, Reserved: 0, Cleaning: 0, Free: 0 }
+    );
+
+    setHistory(prev => {
+      const last = prev[prev.length - 1];
+      const sameAsLast = last && ['Busy', 'Reserved', 'Cleaning', 'Free'].every(key => last.counts[key] === counts[key]);
+      if (sameAsLast) return prev;
+
+      const timestamp = new Date();
+      const next = [
+        ...prev,
+        { counts, timeLabel: timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+      ];
+      return next.slice(-20); // keep history short
+    });
+  }, [tables]);
+
+  const totalTables = tables.length || 1; // avoid division by zero
 
   return (
     <section>
@@ -55,6 +84,62 @@ const Home = () => {
               </option>
             ))}
           </Form.Select>
+        </div>
+      </div>
+
+      <div className="mb-4 p-3 border rounded bg-white shadow-sm">
+        <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+          <h5 className="mb-0">Obłożenie (live)</h5>
+          {['Busy', 'Reserved', 'Cleaning', 'Free'].map(status => (
+            <Badge key={status} bg={statusVariant[status] || 'secondary'}>
+              {status}: {tables.filter(t => t.status === status).length}
+            </Badge>
+          ))}
+        </div>
+        <div className="d-flex flex-column gap-2">
+          {history.length === 0 ? (
+            <small className="text-muted">Brak danych — odśwież lub zmień status stolika.</small>
+          ) : (
+            history.map((entry, idx) => {
+              const segments = ['Busy', 'Reserved', 'Cleaning', 'Free'].map(status => {
+                const percent = (entry.counts[status] / totalTables) * 100;
+                const colors = {
+                  Busy: '#d9534f',
+                  Reserved: '#f0ad4e',
+                  Cleaning: '#5bc0de',
+                  Free: '#5cb85c',
+                };
+                return {
+                  status,
+                  percent,
+                  color: colors[status],
+                };
+              });
+
+              return (
+                <div key={`${entry.timeLabel}-${idx}`} className="d-flex align-items-center gap-2">
+                  <div
+                    className="flex-grow-1 d-flex rounded overflow-hidden"
+                    style={{ height: '10px', background: '#f1f3f5' }}
+                  >
+                    {segments.map(segment => (
+                      <div
+                        key={segment.status}
+                        style={{
+                          width: `${segment.percent}%`,
+                          backgroundColor: segment.color,
+                          transition: 'width 0.3s ease',
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <small className="text-muted" style={{ width: '48px' }}>
+                    {entry.timeLabel}
+                  </small>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
       {sortedTables.map(table => (
