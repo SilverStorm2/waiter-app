@@ -1,0 +1,67 @@
+const fs = require('fs/promises');
+const path = require('path');
+
+const DATA_PATH = path.join(process.cwd(), 'db.json');
+const TMP_DATA_PATH = '/tmp/db.json';
+
+const loadDb = async () => {
+  try {
+    const tmp = await fs.readFile(TMP_DATA_PATH, 'utf-8');
+    return JSON.parse(tmp);
+  } catch (_) {
+    const file = await fs.readFile(DATA_PATH, 'utf-8');
+    await fs.writeFile(TMP_DATA_PATH, file);
+    return JSON.parse(file);
+  }
+};
+
+const saveDb = db => fs.writeFile(TMP_DATA_PATH, JSON.stringify(db, null, 2));
+
+const parseBody = req =>
+  new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => {
+      data += chunk;
+    });
+    req.on('end', () => {
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on('error', reject);
+  });
+
+module.exports = async (req, res) => {
+  const {
+    query: { id },
+  } = req;
+
+  try {
+    const db = await loadDb();
+    const tableIndex = (db.tables || []).findIndex(table => String(table.id) === String(id));
+
+    if (tableIndex === -1) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+
+    if (req.method === 'GET') {
+      return res.status(200).json(db.tables[tableIndex]);
+    }
+
+    if (req.method === 'PATCH') {
+      const body = await parseBody(req);
+      const updated = { ...db.tables[tableIndex], ...body };
+      db.tables[tableIndex] = updated;
+      await saveDb(db);
+      return res.status(200).json(updated);
+    }
+
+    res.setHeader('Allow', 'GET, PATCH');
+    return res.status(405).json({ error: 'Method not allowed' });
+  } catch (error) {
+    console.error('Failed to handle table request', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
