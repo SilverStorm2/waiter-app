@@ -2,7 +2,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Row, Col, Button, Badge, Form } from 'react-bootstrap';
-import { selectTables, fetchTables } from '../../redux/tablesRedux';
+import { selectTables, fetchTables, updateTableRequest } from '../../redux/tablesRedux';
 
 const Home = () => {
   const dispatch = useDispatch();
@@ -10,6 +10,8 @@ const Home = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [history, setHistory] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkStatus, setBulkStatus] = useState('');
   const statusOrder = ['Busy', 'Reserved', 'Cleaning', 'Free'];
   // Softer, modern badge colors instead of the default bright Bootstrap palette
   const statusVariant = {
@@ -33,6 +35,36 @@ const Home = () => {
   const sortedTables = [...filteredTables].sort(
     (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
   );
+
+  const toggleSelect = id => {
+    setSelectedIds(prev => (prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]));
+  };
+
+  const selectAllVisible = checked => {
+    if (checked) setSelectedIds(filteredTables.map(t => t.id));
+    else setSelectedIds([]);
+  };
+
+  const applyBulkStatus = () => {
+    if (!bulkStatus || !selectedIds.length) return;
+
+    const payloads = tables
+      .filter(table => selectedIds.includes(table.id))
+      .map(table => {
+        const isReset = bulkStatus === 'Free' || bulkStatus === 'Cleaning';
+        return {
+          ...table,
+          status: bulkStatus,
+          peopleAmount: isReset ? 0 : table.peopleAmount,
+          bill: isReset ? 0 : table.bill,
+        };
+      });
+
+    Promise.all(payloads.map(data => dispatch(updateTableRequest(data)))).then(() => {
+      setSelectedIds([]);
+      setBulkStatus('');
+    });
+  };
 
   useEffect(() => {
     // Poll backend to capture changes from other users
@@ -101,6 +133,39 @@ const Home = () => {
         </div>
       </div>
 
+      <div className="d-flex flex-column flex-md-row align-items-md-center gap-3 mb-3">
+        <Form.Check
+          type="checkbox"
+          id="select-all"
+          label="Zaznacz widoczne"
+          checked={selectedIds.length === filteredTables.length && filteredTables.length > 0}
+          onChange={e => selectAllVisible(e.target.checked)}
+        />
+        <div className="d-flex gap-2 align-items-center">
+          <Form.Select
+            size="sm"
+            value={bulkStatus}
+            onChange={e => setBulkStatus(e.target.value)}
+            style={{ width: '200px' }}
+          >
+            <option value="">Ustaw status...</option>
+            {statusOrder.map(status => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </Form.Select>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!bulkStatus || !selectedIds.length}
+            onClick={applyBulkStatus}
+          >
+            Zastosuj do zaznaczonych ({selectedIds.length})
+          </Button>
+        </div>
+      </div>
+
       <div className="mb-4 p-3 border rounded bg-white shadow-sm">
         <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
           <h5 className="mb-0">Obłożenie (live)</h5>
@@ -163,7 +228,13 @@ const Home = () => {
       {sortedTables.map(table => (
         <div key={table.id} className="py-3 border-bottom">
           <Row className="align-items-center">
-            <Col md={8}>
+            <Col md={8} className="d-flex align-items-center gap-3">
+              <Form.Check
+                type="checkbox"
+                checked={selectedIds.includes(table.id)}
+                onChange={() => toggleSelect(table.id)}
+                aria-label={`select table ${table.id}`}
+              />
               <h4 className="mb-2 mb-md-0">
                 Table {table.id}{' '}
                 <Badge bg={statusVariant[table.status] || 'secondary'}>{table.status}</Badge>
