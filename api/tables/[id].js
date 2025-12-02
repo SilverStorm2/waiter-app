@@ -21,15 +21,35 @@ const resolveDataPath = async () => {
   throw new Error('db.json not found');
 };
 
+const fallbackDb = () => {
+  try {
+    // eslint-disable-next-line import/no-dynamic-require, global-require
+    return require(path.join(__dirname, '..', '..', 'db.json'));
+  } catch (_) {
+    try {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      return require(path.join(__dirname, '..', '..', '..', 'db.json'));
+    } catch (err) {
+      console.error('Fallback db.json missing', err);
+      return { tables: [] };
+    }
+  }
+};
+
 const loadDb = async () => {
   try {
     const tmp = await fs.readFile(TMP_DATA_PATH, 'utf-8');
     return JSON.parse(tmp);
   } catch (_) {
-    const dataPath = await resolveDataPath();
-    const file = await fs.readFile(dataPath, 'utf-8');
-    await fs.writeFile(TMP_DATA_PATH, file);
-    return JSON.parse(file);
+    try {
+      const dataPath = await resolveDataPath();
+      const file = await fs.readFile(dataPath, 'utf-8');
+      await fs.writeFile(TMP_DATA_PATH, file);
+      return JSON.parse(file);
+    } catch (err) {
+      console.error('Failed to read db.json, using fallback', err);
+      return fallbackDb();
+    }
   }
 };
 
