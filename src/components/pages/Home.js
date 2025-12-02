@@ -12,6 +12,7 @@ const Home = () => {
   const [history, setHistory] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkStatus, setBulkStatus] = useState('');
+  const [groupSize, setGroupSize] = useState('');
   const statusOrder = ['Busy', 'Reserved', 'Cleaning', 'Free'];
   // Softer, modern badge colors instead of the default bright Bootstrap palette
   const statusVariant = {
@@ -22,15 +23,20 @@ const Home = () => {
   };
 
   const filteredTables = useMemo(() => {
+    const groupSizeNum = Number(groupSize);
+    const hasGroupFilter = Number.isFinite(groupSizeNum) && groupSizeNum > 0;
+
     return tables.filter(table => {
       const matchesSearch =
         search.trim() === '' ||
         String(table.id).includes(search.trim()) ||
         table.status.toLowerCase().includes(search.trim().toLowerCase());
       const matchesStatus = statusFilter === 'all' || table.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const freeSeats = Number(table.maxPeopleAmount) - Number(table.peopleAmount);
+      const matchesGroup = !hasGroupFilter || freeSeats >= groupSizeNum;
+      return matchesSearch && matchesStatus && matchesGroup;
     });
-  }, [tables, search, statusFilter]);
+  }, [tables, search, statusFilter, groupSize]);
 
   const sortedTables = [...filteredTables].sort(
     (a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
@@ -110,12 +116,21 @@ const Home = () => {
     <section>
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <h1 className="mb-0">All tables</h1>
-        <div className="d-flex gap-2">
+        <div className="d-flex gap-2 flex-wrap justify-content-end">
           <Form.Control
             size="sm"
             placeholder="Search by id or status"
             value={search}
             onChange={e => setSearch(e.target.value)}
+          />
+          <Form.Control
+            size="sm"
+            type="number"
+            min={1}
+            placeholder="Group size"
+            value={groupSize}
+            onChange={e => setGroupSize(e.target.value)}
+            style={{ width: '130px' }}
           />
           <Form.Select
             size="sm"
